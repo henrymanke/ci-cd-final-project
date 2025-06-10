@@ -1,4 +1,6 @@
-# CI/CD Tools and Practices Final Project Template
+# ∞ [OpenShift Submission Documentation](./openshift/openshift.md)
+
+## CI/CD Tools and Practices Final Project Template
 
 This repository contains the template to be used for the Final Project for the Coursera course **CI/CD Tools and Practices**.
 

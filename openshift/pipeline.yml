@@ -1,0 +1,162 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  creationTimestamp: '2025-06-10T14:35:21Z'
+  generation: 5
+  managedFields:
+    - apiVersion: tekton.dev/v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:spec':
+          .: {}
+          'f:finally': {}
+          'f:params': {}
+          'f:tasks': {}
+          'f:workspaces': {}
+      manager: Mozilla
+      operation: Update
+      time: '2025-06-10T15:42:07Z'
+  name: output
+  namespace: sn-labs-mankehenry
+  resourceVersion: '2217107115'
+  uid: 3f8a9654-e373-49e2-812f-5b2bf455c718
+spec:
+  finally:
+    - name: deploy
+      params:
+        - name: SCRIPT
+          value: >-
+            oc create deployment $(params.app-name)
+            --image=$(params.build-image) --dry-run=client -o yaml | oc apply -f
+            -
+        - name: VERSION
+          value: latest
+      taskRef:
+        kind: ClusterTask
+        name: openshift-client
+  params:
+    - default: >-
+        image-registry.openshift-image-registry.svc:5000/sn-labs-mankehenry/tekton-lab:latest
+      name: build-image
+      type: string
+    - default: cicd-app
+      name: app-name
+      type: string
+  tasks:
+    - name: cleanup
+      taskRef:
+        kind: Task
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: output
+    - name: git-clone
+      params:
+        - name: url
+          value: 'https://github.com/henrymanke/ci-cd-final-project.git'
+        - name: revision
+          value: ''
+        - name: refspec
+          value: ''
+        - name: submodules
+          value: 'true'
+        - name: depth
+          value: '1'
+        - name: sslVerify
+          value: 'true'
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: subdirectory
+          value: ''
+        - name: sparseCheckoutDirectories
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+        - name: httpProxy
+          value: ''
+        - name: httpsProxy
+          value: ''
+        - name: noProxy
+          value: ''
+        - name: verbose
+          value: 'true'
+        - name: gitInitImage
+          value: >-
+            gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.40.2
+        - name: userHome
+          value: /home/git
+      runAfter:
+        - cleanup
+      taskRef:
+        kind: Task
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: output
+    - name: flake8
+      params:
+        - name: image
+          value: 'python:3.9-slim'
+        - name: path
+          value: .
+        - name: requirements_file
+          value: requirements.txt
+        - name: args
+          value:
+            - '--count'
+            - '--max-complexity=10'
+            - '--max-line-length=127'
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: Task
+        name: flake8
+      workspaces:
+        - name: source
+          workspace: output
+    - name: nose
+      params:
+        - name: args
+          value: '-v'
+      runAfter:
+        - flake8
+      taskRef:
+        kind: Task
+        name: nose
+      workspaces:
+        - name: source
+          workspace: output
+    - name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.build-image)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:55f5c7d88c77e1ab5a2ab8e877172b2b66cb196e21f10dc45148470d0ee8bbae
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: .
+        - name: TLSVERIFY
+          value: 'true'
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: ''
+        - name: PUSH_EXTRA_ARGS
+          value: ''
+        - name: SKIP_PUSH
+          value: 'false'
+      runAfter:
+        - nose
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: output
+  workspaces:
+    - name: output
+      optional: false
